@@ -16,13 +16,15 @@ NOTES:
     keys on its account.
 */
 
+use std::collections::HashSet;
+
 use near_contract_standards::non_fungible_token::metadata::{
     NFTContractMetadata, NonFungibleTokenMetadataProvider, TokenMetadata, NFT_METADATA_SPEC,
 };
 use near_contract_standards::non_fungible_token::NonFungibleToken;
 use near_contract_standards::non_fungible_token::{Token, TokenId};
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::collections::LazyOption;
+use near_sdk::collections::{LazyOption, UnorderedSet};
 use near_sdk::{
     env, near_bindgen, AccountId, BorshStorageKey, PanicOnDefault, Promise, PromiseOrValue,
 };
@@ -32,6 +34,7 @@ use near_sdk::{
 pub struct Contract {
     tokens: NonFungibleToken,
     metadata: LazyOption<NFTContractMetadata>,
+    token_owners: UnorderedSet<AccountId>,
 }
 
 // TODO
@@ -48,6 +51,7 @@ enum StorageKey {
     TokenMetadata,
     Enumeration,
     Approval,
+    TokenOwners,
 }
 
 #[near_bindgen]
@@ -83,6 +87,7 @@ impl Contract {
                 Some(StorageKey::Approval),
             ),
             metadata: LazyOption::new(StorageKey::Metadata, Some(&metadata)),
+            token_owners: UnorderedSet::new(StorageKey::TokenOwners),
         }
     }
 
@@ -101,8 +106,13 @@ impl Contract {
         receiver_id: AccountId,
         token_metadata: TokenMetadata,
     ) -> Token {
+        self.token_owners.insert(&receiver_id);
         self.tokens
             .internal_mint(token_id, receiver_id, Some(token_metadata))
+    }
+
+    pub fn nft_owners(&self) -> Vec<AccountId> {
+        self.token_owners.to_vec()
     }
 }
 
