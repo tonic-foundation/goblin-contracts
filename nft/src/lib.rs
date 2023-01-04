@@ -21,6 +21,7 @@ mod nft_impl;
 use std::collections::{HashMap, HashSet};
 
 use near_contract_standards::non_fungible_token::core::NonFungibleTokenCore;
+use near_contract_standards::non_fungible_token::core::NonFungibleTokenReceiver;
 use near_contract_standards::non_fungible_token::metadata::{
     NFTContractMetadata, NonFungibleTokenMetadataProvider, TokenMetadata,
 };
@@ -29,9 +30,19 @@ use near_contract_standards::non_fungible_token::{Token, TokenId};
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::LazyOption;
 use near_sdk::{
-    env, ext_contract, near_bindgen, AccountId, BorshStorageKey, PanicOnDefault, Promise,
+    env, ext_contract, near_bindgen, AccountId, BorshStorageKey, Gas, PanicOnDefault, Promise,
     PromiseOrValue,
 };
+
+pub fn goblins_id() -> AccountId {
+    if cfg!(feature = "mainnet") {
+        "tonic_goblin.enleap.near"
+    } else {
+        "tonic_goblins.testnet" // Test NFT contract
+    }
+    .parse()
+    .unwrap()
+}
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
@@ -92,6 +103,22 @@ impl Contract {
     pub fn nft_owners(&self) -> HashSet<AccountId> {
         self.token_owners.clone()
     }
+
+    #[private]
+    pub fn create_nft(
+        &mut self,
+        account_id: AccountId,
+        token_id: TokenId,
+        #[callback] tokens: Vec<Token>,
+    ) {
+        let token_data = tokens
+            .iter()
+            .find(|token| token.token_id == token_id)
+            .expect("Token wasn't sent");
+
+        let metadata = token_data.metadata.clone();
+        self.tokens.internal_mint(token_id, account_id, metadata);
+    }
 }
 
 impl Contract {
@@ -122,6 +149,63 @@ impl NonFungibleTokenMetadataProvider for Contract {
     fn nft_metadata(&self) -> NFTContractMetadata {
         self.metadata.get().unwrap()
     }
+}
+
+#[near_bindgen]
+impl NonFungibleTokenReceiver for Contract {
+    /// Take some action after receiving a non-fungible token
+    ///
+    /// Requirements:
+    /// * Contract MUST restrict calls to this function to a set of whitelisted NFT
+    ///   contracts
+    ///
+    /// Arguments:
+    /// * `sender_id`: the sender of `nft_transfer_call`
+    /// * `previous_owner_id`: the account that owned the NFT prior to it being
+    ///   transferred to this contract, which can differ from `sender_id` if using
+    ///   Approval Management extension
+    /// * `token_id`: the `token_id` argument given to `nft_transfer_call`
+    /// * `msg`: information necessary for this contract to know how to process the
+    ///   request. This may include method names and/or arguments.
+    ///
+    /// Returns true if token should be returned to `sender_id`
+    #[allow(unused_variables)]
+    fn nft_on_transfer(
+        &mut self,
+        sender_id: AccountId,
+        previous_owner_id: AccountId,
+        token_id: TokenId,
+        msg: String,
+    ) -> PromiseOrValue<bool> {
+        assert_eq!(goblins_id(), env::predecessor_account_id());
+
+        let ext_self = Self::ext(env::current_account_id());
+
+        ext_nft_contract::ext(goblins_id())
+            .with_static_gas(GAS_FOR_GET_TOKENS)
+            .nft_tokens_for_owner(env::current_account_id(), None, None)
+            .then(ext_self.create_nft(previous_owner_id, token_id))
+            .into()
+    }
+}
+
+#[ext_contract(ext_nft_contract)]
+pub trait OldNonFungibleToken {
+    /// Get list of all tokens owned by a given account
+    ///
+    /// Arguments:
+    /// * `account_id`: a valid NEAR account
+    /// * `from_index`: a string representing an unsigned 128-bit integer,
+    ///    representing the starting index of tokens to return
+    /// * `limit`: the maximum number of tokens to return
+    ///
+    /// Returns a paginated list of all tokens owned by this account
+    fn nft_tokens_for_owner(
+        &self,
+        account_id: AccountId,
+        from_index: Option<near_sdk::json_types::U128>, // default: "0"
+        limit: Option<u64>, // default: unlimited (could fail due to gas limit)
+    ) -> Vec<Token>;
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
