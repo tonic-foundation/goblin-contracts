@@ -29,7 +29,7 @@ fi
 
 echo ==== View contract metadata ====
 TEXT=$(near view $CONTRACT_NAME nft_metadata)
-if [[ ! "$TEXT" =~ .*"Example NEAR non-fungible token".* ]]; then 
+if [[ ! "$TEXT" =~ .*"Tonic Greedy Goblins".* ]]; then 
     echo -e "\033[0;31m FAIL \033[0m"
     exit 1 
 else 

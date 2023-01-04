@@ -16,8 +16,11 @@ NOTES:
     keys on its account.
 */
 
-use std::collections::HashSet;
+mod nft_impl;
 
+use std::collections::HashMap;
+
+use near_contract_standards::non_fungible_token::core::NonFungibleTokenCore;
 use near_contract_standards::non_fungible_token::metadata::{
     NFTContractMetadata, NonFungibleTokenMetadataProvider, TokenMetadata, NFT_METADATA_SPEC,
 };
@@ -26,7 +29,8 @@ use near_contract_standards::non_fungible_token::{Token, TokenId};
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LazyOption, UnorderedSet};
 use near_sdk::{
-    env, near_bindgen, AccountId, BorshStorageKey, PanicOnDefault, Promise, PromiseOrValue,
+    assert_one_yocto, env, ext_contract, near_bindgen, require, AccountId, BorshStorageKey, Gas,
+    PanicOnDefault, Promise, PromiseOrValue,
 };
 
 #[near_bindgen]
@@ -43,6 +47,9 @@ const NFT_NAME: &str = "Tonic Greedy Goblins";
 const NFT_SYMBOL: &str = "GGB";
 const BASE_IRI: &str =
     "https://enleap.infura-ipfs.io/ipfs/QmPUtd7VLoy1Ursa9w4gKwL12W9tMxJXvHkMEZ2VZrPnem";
+
+const GAS_FOR_RESOLVE_TRANSFER: Gas = Gas(5_000_000_000_000);
+const GAS_FOR_NFT_TRANSFER_CALL: Gas = Gas(25_000_000_000_000 + GAS_FOR_RESOLVE_TRANSFER.0);
 
 #[derive(BorshSerialize, BorshStorageKey)]
 enum StorageKey {
@@ -114,9 +121,27 @@ impl Contract {
     pub fn nft_owners(&self) -> Vec<AccountId> {
         self.token_owners.to_vec()
     }
+
+    pub fn token_metadata(&self, token_id: TokenId) -> Option<TokenMetadata> {
+        self.tokens
+            .token_metadata_by_id
+            .as_ref()
+            .map(|metadata| metadata.get(&token_id).expect("Token id not found"))
+    }
 }
 
-near_contract_standards::impl_non_fungible_token_core!(Contract, tokens);
+impl Contract {
+    pub fn update_owners_map(&mut self, owner_id: &AccountId) {
+        let owner_nft = self
+            .tokens
+            .nft_tokens_for_owner(owner_id.clone(), None, None);
+
+        if owner_nft.is_empty() {
+            self.token_owners.remove(owner_id);
+        }
+    }
+}
+
 near_contract_standards::impl_non_fungible_token_approval!(Contract, tokens);
 near_contract_standards::impl_non_fungible_token_enumeration!(Contract, tokens);
 
