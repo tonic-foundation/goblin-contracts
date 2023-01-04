@@ -11,8 +11,6 @@ overflow-checks = true
 # remember to include a member for each contract
 members = [
   "nft",
-  "test-approval-receiver",
-  "test-token-receiver",
 ]
 exclude  = [
   "integration-tests"
