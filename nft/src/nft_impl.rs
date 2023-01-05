@@ -1,5 +1,5 @@
 use near_contract_standards::non_fungible_token::{
-    core::NonFungibleTokenResolver, refund_approved_account_ids, events::NftTransfer,
+    core::NonFungibleTokenResolver, events::NftTransfer, refund_approved_account_ids,
 };
 use near_sdk::PromiseResult;
 
@@ -7,6 +7,7 @@ use crate::*;
 
 #[near_bindgen]
 impl NonFungibleTokenCore for Contract {
+    #[payable]
     fn nft_transfer(
         &mut self,
         receiver_id: AccountId,
@@ -14,13 +15,12 @@ impl NonFungibleTokenCore for Contract {
         approval_id: Option<u64>,
         memo: Option<String>,
     ) {
-        assert_one_yocto();
-        let sender_id = env::predecessor_account_id();
         self.tokens
-            .internal_transfer(&sender_id, &receiver_id, &token_id, approval_id, memo);
-        self.update_owners_map(&sender_id);
+            .nft_transfer(receiver_id.clone(), token_id, approval_id, memo);
+        self.update_owners_map(&env::predecessor_account_id(), &receiver_id);
     }
 
+    #[payable]
     fn nft_transfer_call(
         &mut self,
         receiver_id: AccountId,
@@ -29,44 +29,12 @@ impl NonFungibleTokenCore for Contract {
         memo: Option<String>,
         msg: String,
     ) -> PromiseOrValue<bool> {
-        assert_one_yocto();
-        require!(
-            env::prepaid_gas() > GAS_FOR_NFT_TRANSFER_CALL,
-            "More gas is required"
-        );
-        let sender_id = env::predecessor_account_id();
-        let (old_owner, old_approvals) =
-            self.tokens
-                .internal_transfer(&sender_id, &receiver_id, &token_id, approval_id, memo);
-
-        let ext_self = Self::ext(env::current_account_id());
-
-        // Initiating receiver's call and the callback
-        ext_nft_receiver::ext(receiver_id.clone())
-            .with_static_gas(env::prepaid_gas() - GAS_FOR_NFT_TRANSFER_CALL)
-            .nft_on_transfer(sender_id, old_owner.clone(), token_id.clone(), msg)
-            .then(ext_self.nft_resolve_transfer(old_owner, receiver_id, token_id, old_approvals))
-            .into()
+        self.tokens
+            .nft_transfer_call(receiver_id, token_id, approval_id, memo, msg)
     }
 
     fn nft_token(&self, token_id: TokenId) -> Option<Token> {
-        let owner_id = self.tokens.owner_by_id.get(&token_id)?;
-        let metadata = self
-            .tokens
-            .token_metadata_by_id
-            .as_ref()
-            .and_then(|by_id| by_id.get(&token_id));
-        let approved_account_ids = self
-            .tokens
-            .approvals_by_id
-            .as_ref()
-            .and_then(|by_id| by_id.get(&token_id).or_else(|| Some(HashMap::new())));
-        Some(Token {
-            token_id,
-            owner_id,
-            metadata,
-            approved_account_ids,
-        })
+        self.tokens.nft_token(token_id)
     }
 }
 
@@ -96,6 +64,7 @@ impl NonFungibleTokenResolver for Contract {
 
         // if call succeeded, return early
         if !must_revert {
+            self.update_owners_map(&env::predecessor_account_id(), &receiver_id);
             return true;
         }
 
@@ -104,6 +73,8 @@ impl NonFungibleTokenResolver for Contract {
         // Check that receiver didn't already transfer it away or burn it.
         if let Some(current_owner) = self.tokens.owner_by_id.get(&token_id) {
             if current_owner != receiver_id {
+                self.check_old_owner_in_map(&previous_owner_id);
+                self.check_old_owner_in_map(&receiver_id);
                 // The token is not owned by the receiver anymore. Can't return it.
                 return true;
             }
@@ -111,8 +82,10 @@ impl NonFungibleTokenResolver for Contract {
             // The token was burned and doesn't exist anymore.
             // Refund storage cost for storing approvals to original owner and return early.
             if let Some(approved_account_ids) = approved_account_ids {
-                refund_approved_account_ids(previous_owner_id, &approved_account_ids);
+                refund_approved_account_ids(previous_owner_id.clone(), &approved_account_ids);
             }
+            self.check_old_owner_in_map(&previous_owner_id);
+            self.check_old_owner_in_map(&receiver_id);
             return true;
         };
 
@@ -130,8 +103,6 @@ impl NonFungibleTokenResolver for Contract {
                 by_id.insert(&token_id, &previous_owner_approvals);
             }
         }
-
-        self.update_owners_map(&previous_owner_id);
 
         emit_transfer(&receiver_id, &previous_owner_id, &token_id, None, None);
         false

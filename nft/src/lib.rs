@@ -29,8 +29,8 @@ use near_contract_standards::non_fungible_token::{Token, TokenId};
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LazyOption, UnorderedSet};
 use near_sdk::{
-    assert_one_yocto, env, ext_contract, near_bindgen, require, AccountId, BorshStorageKey, Gas,
-    PanicOnDefault, Promise, PromiseOrValue,
+    env, ext_contract, near_bindgen, AccountId, BorshStorageKey, PanicOnDefault, Promise,
+    PromiseOrValue,
 };
 
 #[near_bindgen]
@@ -47,9 +47,6 @@ const NFT_NAME: &str = "Tonic Greedy Goblins";
 const NFT_SYMBOL: &str = "GGB";
 const BASE_IRI: &str =
     "https://enleap.infura-ipfs.io/ipfs/QmPUtd7VLoy1Ursa9w4gKwL12W9tMxJXvHkMEZ2VZrPnem";
-
-const GAS_FOR_RESOLVE_TRANSFER: Gas = Gas(5_000_000_000_000);
-const GAS_FOR_NFT_TRANSFER_CALL: Gas = Gas(25_000_000_000_000 + GAS_FOR_RESOLVE_TRANSFER.0);
 
 #[derive(BorshSerialize, BorshStorageKey)]
 enum StorageKey {
@@ -121,24 +118,25 @@ impl Contract {
     pub fn nft_owners(&self) -> Vec<AccountId> {
         self.token_owners.to_vec()
     }
-
-    pub fn token_metadata(&self, token_id: TokenId) -> Option<TokenMetadata> {
-        self.tokens
-            .token_metadata_by_id
-            .as_ref()
-            .map(|metadata| metadata.get(&token_id).expect("Token id not found"))
-    }
 }
 
 impl Contract {
-    pub fn update_owners_map(&mut self, owner_id: &AccountId) {
+    pub fn check_old_owner_in_map(&mut self, owner_id: &AccountId) {
         let owner_nft = self
             .tokens
-            .nft_tokens_for_owner(owner_id.clone(), None, None);
+            .tokens_per_owner
+            .as_ref()
+            .unwrap()
+            .get(&owner_id);
 
-        if owner_nft.is_empty() {
+        if owner_nft.is_none() {
             self.token_owners.remove(owner_id);
         }
+    }
+
+    pub fn update_owners_map(&mut self, previous_owner: &AccountId, new_owner: &AccountId) {
+        self.check_old_owner_in_map(previous_owner);
+        self.token_owners.insert(new_owner);
     }
 }
 
