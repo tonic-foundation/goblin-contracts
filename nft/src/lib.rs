@@ -28,11 +28,13 @@ use near_contract_standards::non_fungible_token::metadata::{
 use near_contract_standards::non_fungible_token::NonFungibleToken;
 use near_contract_standards::non_fungible_token::{Token, TokenId};
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::collections::LazyOption;
+use near_sdk::collections::{LazyOption, UnorderedMap};
 use near_sdk::{
     env, ext_contract, near_bindgen, AccountId, BorshStorageKey, Gas, PanicOnDefault, Promise,
     PromiseOrValue,
 };
+
+const GAS_FOR_GET_TOKENS: Gas = Gas(25_000_000_000_000);
 
 pub fn goblins_id() -> AccountId {
     if cfg!(feature = "mainnet") {
@@ -50,6 +52,8 @@ pub struct Contract {
     tokens: NonFungibleToken,
     metadata: LazyOption<NFTContractMetadata>,
     token_owners: HashSet<AccountId>,
+    /// List of tokens from previous contract that have to be minted in this one
+    pending_tokens: UnorderedMap<TokenId, AccountId>,
 }
 
 #[derive(BorshSerialize, BorshStorageKey)]
@@ -59,6 +63,7 @@ enum StorageKey {
     TokenMetadata,
     Enumeration,
     Approval,
+    PendingTokens,
 }
 
 #[near_bindgen]
@@ -77,6 +82,7 @@ impl Contract {
             ),
             metadata: LazyOption::new(StorageKey::Metadata, Some(&metadata)),
             token_owners: HashSet::new(),
+            pending_tokens: UnorderedMap::new(StorageKey::PendingTokens),
         }
     }
 
@@ -104,20 +110,37 @@ impl Contract {
         self.token_owners.clone()
     }
 
-    #[private]
-    pub fn create_nft(
-        &mut self,
-        account_id: AccountId,
-        token_id: TokenId,
-        #[callback] tokens: Vec<Token>,
-    ) {
-        let token_data = tokens
-            .iter()
-            .find(|token| token.token_id == token_id)
-            .expect("Token wasn't sent");
+    #[payable]
+    pub fn create_nft(&mut self, token_id: TokenId) -> Promise {
+        let account_id = env::predecessor_account_id();
+        assert!(
+            self.pending_tokens.get(&token_id).is_none(),
+            "No such token in pending list"
+        );
+        assert_eq!(
+            self.pending_tokens.get(&token_id).unwrap(),
+            account_id,
+            "You are not the owner of this token"
+        );
+        let ext_self = Self::ext(env::current_account_id());
 
-        let metadata = token_data.metadata.clone();
-        self.tokens.internal_mint(token_id, account_id, metadata);
+        ext_nft_contract::ext(goblins_id())
+            .with_static_gas(GAS_FOR_GET_TOKENS)
+            .nft_token(token_id.clone())
+            .then(ext_self.handle_nft_mint(token_id, account_id))
+    }
+
+    #[private]
+    pub fn handle_nft_mint(
+        &mut self,
+        token_id: TokenId,
+        account_id: AccountId,
+        #[callback] token: Option<Token>,
+    ) {
+        assert!(token.is_none(), "There is no such token in old contract");
+        self.tokens
+            .internal_mint(token_id.clone(), account_id, token.unwrap().metadata);
+        self.pending_tokens.remove(&token_id);
     }
 }
 
@@ -179,33 +202,16 @@ impl NonFungibleTokenReceiver for Contract {
     ) -> PromiseOrValue<bool> {
         assert_eq!(goblins_id(), env::predecessor_account_id());
 
-        let ext_self = Self::ext(env::current_account_id());
+        self.pending_tokens.insert(&token_id, &sender_id);
 
-        ext_nft_contract::ext(goblins_id())
-            .with_static_gas(GAS_FOR_GET_TOKENS)
-            .nft_tokens_for_owner(env::current_account_id(), None, None)
-            .then(ext_self.create_nft(previous_owner_id, token_id))
-            .into()
+        PromiseOrValue::Value(false)
     }
 }
 
 #[ext_contract(ext_nft_contract)]
 pub trait OldNonFungibleToken {
-    /// Get list of all tokens owned by a given account
-    ///
-    /// Arguments:
-    /// * `account_id`: a valid NEAR account
-    /// * `from_index`: a string representing an unsigned 128-bit integer,
-    ///    representing the starting index of tokens to return
-    /// * `limit`: the maximum number of tokens to return
-    ///
-    /// Returns a paginated list of all tokens owned by this account
-    fn nft_tokens_for_owner(
-        &self,
-        account_id: AccountId,
-        from_index: Option<near_sdk::json_types::U128>, // default: "0"
-        limit: Option<u64>, // default: unlimited (could fail due to gas limit)
-    ) -> Vec<Token>;
+    /// Returns the token with the given `token_id` or `null` if no such token.
+    fn nft_token(&self, token_id: TokenId) -> Option<Token>;
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
