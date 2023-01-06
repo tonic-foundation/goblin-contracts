@@ -40,7 +40,7 @@ pub fn goblins_id() -> AccountId {
     if cfg!(feature = "mainnet") {
         "tonic_goblin.enleap.near"
     } else {
-        "tonic_goblins.testnet" // Test NFT contract
+        "tonic_goblin.testnet" // Test NFT contract
     }
     .parse()
     .unwrap()
@@ -114,7 +114,7 @@ impl Contract {
     pub fn create_nft(&mut self, token_id: TokenId) -> Promise {
         let account_id = env::predecessor_account_id();
         assert!(
-            self.pending_tokens.get(&token_id).is_none(),
+            self.pending_tokens.get(&token_id).is_some(),
             "No such token in pending list"
         );
         assert_eq!(
@@ -127,20 +127,29 @@ impl Contract {
         ext_nft_contract::ext(goblins_id())
             .with_static_gas(GAS_FOR_GET_TOKENS)
             .nft_token(token_id.clone())
-            .then(ext_self.handle_nft_mint(token_id, account_id))
+            .then(
+                ext_self
+                    .with_attached_deposit(env::attached_deposit())
+                    .handle_nft_mint(token_id, account_id),
+            )
     }
 
     #[private]
+    #[payable]
     pub fn handle_nft_mint(
         &mut self,
         token_id: TokenId,
         account_id: AccountId,
         #[callback] token: Option<Token>,
     ) {
-        assert!(token.is_none(), "There is no such token in old contract");
+        assert!(token.is_some(), "There is no such token in old contract");
         self.tokens
             .internal_mint(token_id.clone(), account_id, token.unwrap().metadata);
         self.pending_tokens.remove(&token_id);
+    }
+
+    pub fn pending_tokens(&self) -> Vec<(TokenId, AccountId)> {
+        self.pending_tokens.to_vec()
     }
 }
 
