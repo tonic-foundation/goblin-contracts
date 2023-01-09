@@ -116,8 +116,13 @@ impl Contract {
             .internal_mint(token_id, receiver_id, Some(token_metadata))
     }
 
-    pub fn nft_owners(&self) -> Vec<u8> {
-        to_vec(&self.token_owners).unwrap()
+    pub fn nft_owners(&self, from_index: Option<u64>, limit: Option<u64>) -> Vec<AccountId> {
+        let owners = self.token_owners.as_vector();
+        let from_index = from_index.unwrap_or(0);
+        let limit = limit.unwrap_or(owners.len());
+        (from_index..std::cmp::min(owners.len(), limit))
+            .map(|index| owners.get(index).unwrap())
+            .collect()
     }
 }
 
