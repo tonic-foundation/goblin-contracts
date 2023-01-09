@@ -64,7 +64,7 @@ impl NonFungibleTokenResolver for Contract {
 
         // if call succeeded, return early
         if !must_revert {
-            self.update_owners_map(&env::predecessor_account_id(), &receiver_id);
+            self.update_owners_map(&previous_owner_id, &receiver_id);
             return true;
         }
 
