@@ -17,7 +17,7 @@ impl NonFungibleTokenCore for Contract {
     ) {
         self.tokens
             .nft_transfer(receiver_id.clone(), token_id, approval_id, memo);
-        self.update_owners_map(&env::predecessor_account_id(), &receiver_id);
+        self.update_owners_map(&env::predecessor_account_id(), receiver_id);
     }
 
     #[payable]
@@ -64,7 +64,7 @@ impl NonFungibleTokenResolver for Contract {
 
         // if call succeeded, return early
         if !must_revert {
-            self.update_owners_map(&previous_owner_id, &receiver_id);
+            self.update_owners_map(&previous_owner_id, receiver_id.clone());
             return true;
         }
 

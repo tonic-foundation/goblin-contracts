@@ -18,7 +18,7 @@ NOTES:
 
 mod nft_impl;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use near_contract_standards::non_fungible_token::core::NonFungibleTokenCore;
 use near_contract_standards::non_fungible_token::metadata::{
@@ -27,7 +27,7 @@ use near_contract_standards::non_fungible_token::metadata::{
 use near_contract_standards::non_fungible_token::NonFungibleToken;
 use near_contract_standards::non_fungible_token::{Token, TokenId};
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::collections::{LazyOption, UnorderedSet};
+use near_sdk::collections::LazyOption;
 use near_sdk::{
     env, ext_contract, near_bindgen, AccountId, BorshStorageKey, PanicOnDefault, Promise,
     PromiseOrValue,
@@ -38,7 +38,7 @@ use near_sdk::{
 pub struct Contract {
     tokens: NonFungibleToken,
     metadata: LazyOption<NFTContractMetadata>,
-    token_owners: UnorderedSet<AccountId>,
+    token_owners: HashSet<AccountId>,
 }
 
 // TODO
@@ -55,7 +55,6 @@ enum StorageKey {
     TokenMetadata,
     Enumeration,
     Approval,
-    TokenOwners,
 }
 
 #[near_bindgen]
@@ -91,7 +90,7 @@ impl Contract {
                 Some(StorageKey::Approval),
             ),
             metadata: LazyOption::new(StorageKey::Metadata, Some(&metadata)),
-            token_owners: UnorderedSet::new(StorageKey::TokenOwners),
+            token_owners: HashSet::new(),
         }
     }
 
@@ -110,18 +109,13 @@ impl Contract {
         receiver_id: AccountId,
         token_metadata: TokenMetadata,
     ) -> Token {
-        self.token_owners.insert(&receiver_id);
+        self.token_owners.insert(receiver_id.clone());
         self.tokens
             .internal_mint(token_id, receiver_id, Some(token_metadata))
     }
 
-    pub fn nft_owners(&self, from_index: Option<u64>, limit: Option<u64>) -> Vec<AccountId> {
-        let owners = self.token_owners.as_vector();
-        let from_index = from_index.unwrap_or(0);
-        let limit = limit.unwrap_or(owners.len());
-        (from_index..std::cmp::min(owners.len(), limit))
-            .map(|index| owners.get(index).unwrap())
-            .collect()
+    pub fn nft_owners(&self) -> HashSet<AccountId> {
+        self.token_owners.clone()
     }
 }
 
@@ -139,7 +133,7 @@ impl Contract {
         }
     }
 
-    pub fn update_owners_map(&mut self, previous_owner: &AccountId, new_owner: &AccountId) {
+    pub fn update_owners_map(&mut self, previous_owner: &AccountId, new_owner: AccountId) {
         self.check_old_owner_in_map(previous_owner);
         self.token_owners.insert(new_owner);
     }

@@ -1,21 +1,15 @@
+use std::collections::HashSet;
+
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::collections::UnorderedSet;
-use near_sdk::serde_json::json;
-use near_sdk::{env, near_bindgen, AccountId, BorshStorageKey, Gas, PanicOnDefault, Promise};
+use near_sdk::{env, near_bindgen, AccountId, Gas, PanicOnDefault, Promise};
 
-const TGAS_GET_NFT_TOKENS: u64 = 150;
-
-#[derive(BorshSerialize, BorshStorageKey)]
-enum StorageKey {
-    NftOwners,
-    Goblins,
-}
+const TGAS_GET_NFT_TOKENS: u64 = 100;
 
 pub fn goblins_id() -> AccountId {
     if cfg!(feature = "mainnet") {
-        "tonic_goblin.enleap.near"
+        "" // TODO insert our contract address
     } else {
-        "dev-1673008864122-15827906125219" // Test NFT contract with 2k owners
+        "dev-1673361753463-54922973878649" // Test NFT contract with 2k owners
     }
     .parse()
     .unwrap()
@@ -25,10 +19,8 @@ pub fn goblins_id() -> AccountId {
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
 pub struct Contract {
     owner_id: AccountId,
-    /// Actual owners of the contract
-    nft_owners: UnorderedSet<AccountId>,
-    /// Goblins that take part in DAO staff
-    goblins: UnorderedSet<AccountId>,
+
+    nft_owners: HashSet<AccountId>,
 }
 
 #[near_bindgen]
@@ -38,50 +30,61 @@ impl Contract {
         assert!(!env::state_exists(), "Already initialized");
         Self {
             owner_id,
-            nft_owners: UnorderedSet::new(StorageKey::NftOwners),
-            goblins: UnorderedSet::new(StorageKey::Goblins),
+            nft_owners: HashSet::new(),
         }
     }
 
-    pub fn parse_nft_owners(&mut self, from_index: Option<u64>, limit: Option<u64>) -> Promise {
+    /// Synchronizing NFT owners. Removes those ones who don't have NFT anymore,
+    /// insert new owners. Return `true` if NFT owners are fully synchronized.
+    pub fn sync_nft_owners(&mut self) -> Promise {
         assert_eq!(self.owner_id, env::predecessor_account_id());
 
         let ext_self = Self::ext(env::current_account_id());
         let gas = Gas::ONE_TERA * TGAS_GET_NFT_TOKENS;
-        let args = json!({ "from_index": from_index, "limit": limit})
-            .to_string()
-            .into_bytes();
 
         Promise::new(goblins_id())
-            .function_call("nft_owners".into(), args, 0, gas)
-            .then(ext_self.handle_goblins_parse())
+            .function_call("nft_owners".into(), vec![], 0, gas)
+            .then(ext_self.handle_owners_sync())
     }
 
     #[private]
-    pub fn handle_goblins_parse(&mut self, #[callback] owners: Vec<AccountId>) {
-        self.nft_owners.extend(owners);
+    pub fn handle_owners_sync(&mut self, #[callback] owners: HashSet<AccountId>) -> bool {
+        let owners_to_remove: Vec<AccountId> = self
+            .nft_owners
+            .difference(&owners)
+            .map(Clone::clone)
+            .collect();
+
+        self.remove_goblins(owners_to_remove);
+
+        let owners_to_add: Vec<AccountId> = owners
+            .difference(&self.nft_owners)
+            .map(Clone::clone)
+            .collect();
+
+        self.nft_owners.extend(owners_to_add);
+
+        self.nft_owners.len() == self.nft_owners.len()
     }
 
-    pub fn clear_nft_owners(&mut self, from_index: Option<u64>, limit: Option<u64>) {
+    pub fn clear_nft_owners(&mut self) -> usize {
         assert_eq!(self.owner_id, env::predecessor_account_id());
         self.nft_owners.clear();
+        self.nft_owners.len()
     }
 
-    pub fn get_goblins(&self, from_index: Option<u64>, limit: Option<u64>) -> Vec<AccountId> {
-        let goblins = self.goblins.as_vector();
-        let from_index = from_index.unwrap_or(0);
-        let limit = limit.unwrap_or(goblins.len());
-        (from_index..std::cmp::min(goblins.len(), limit))
-            .map(|index| goblins.get(index).unwrap())
-            .collect()
+    pub fn get_nft_owners(&self) -> HashSet<AccountId> {
+        self.nft_owners.clone()
     }
 
-    pub fn get_nft_owners(&self, from_index: Option<u64>, limit: Option<u64>) -> Vec<AccountId> {
-        let goblins = self.nft_owners.as_vector();
-        let from_index = from_index.unwrap_or(0);
-        let limit = limit.unwrap_or(goblins.len());
-        (from_index..std::cmp::min(goblins.len(), limit))
-            .map(|index| goblins.get(index).unwrap())
-            .collect()
+    pub fn owners_len(&self) -> usize {
+        self.nft_owners.len()
+    }
+
+    fn remove_goblins(&mut self, users: Vec<AccountId>) {
+        assert_eq!(self.owner_id, env::predecessor_account_id());
+        for user in users {
+            self.nft_owners.remove(&user);
+        }
     }
 }
