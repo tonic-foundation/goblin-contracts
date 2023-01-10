@@ -11,6 +11,7 @@ overflow-checks = true
 # remember to include a member for each contract
 members = [
   "nft",
+  "dao"
 ]
 exclude  = [
   "integration-tests"

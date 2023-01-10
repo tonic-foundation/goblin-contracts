@@ -18,7 +18,6 @@ NOTES:
 
 mod nft_impl;
 
-use borsh::to_vec;
 use std::collections::HashMap;
 
 use near_contract_standards::non_fungible_token::core::NonFungibleTokenCore;
