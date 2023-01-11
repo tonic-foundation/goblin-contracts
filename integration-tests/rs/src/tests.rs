@@ -24,9 +24,14 @@ async fn main() -> anyhow::Result<()> {
 
     // Initialize contracts
     nft_contract
-        .call("new_default_meta")
+        .call("new")
         .args_json(serde_json::json!({
-            "owner_id": owner.id()
+            "owner_id": owner.id(),
+            "metadata": {
+                "spec": "nft-1.0.0", 
+                "name": "Tonic Greedy Goblins", 
+                "symbol": "GGB"
+            }
         }))
         .transact()
         .await?;
