@@ -155,6 +155,21 @@ async fn test_simple_transfer(
     nft_contract: &Contract,
 ) -> anyhow::Result<()> {
     use serde_json::Value::String;
+    owner
+        .call(nft_contract.id(), "nft_mint")
+        .args_json(json!({
+            "token_id": "1",
+            "receiver_id": owner.id(),
+            "token_metadata": {
+                "title": "Olympus Mons 2",
+                "description": "The tallest mountain in the charted solar system",
+                "copies": 1,
+            }
+        }))
+        .deposit(parse_gas!("6050000000000000000000"))
+        .transact()
+        .await?;
+
     let token: serde_json::Value = nft_contract
         .call("nft_token")
         .args_json(json!({"token_id": "1"}))
@@ -194,7 +209,7 @@ async fn test_enum_total_supply(
         .transact()
         .await?
         .json()?;
-    assert_eq!(supply, "5");
+    assert_eq!(supply, "2");
 
     println!("      Passed ✅ test_enum_total_supply");
     Ok(())
@@ -210,7 +225,7 @@ async fn test_enum_nft_tokens(
         .await?
         .json()?;
 
-    assert_eq!(tokens.len(), 5);
+    assert_eq!(tokens.len(), 2);
 
     println!("      Passed ✅ test_enum_nft_tokens");
     Ok(())
@@ -227,7 +242,7 @@ async fn test_enum_nft_supply_for_owner(
         .transact()
         .await?
         .json()?;
-    assert_eq!(owner_tokens, "1");
+    assert_eq!(owner_tokens, "0");
 
     let user_tokens: String = nft_contract
         .call("nft_supply_for_owner")
@@ -264,7 +279,7 @@ async fn test_enum_nft_tokens_for_owner(
         .transact()
         .await?
         .json()?;
-    assert_eq!(tokens.len(), 1);
+    assert_eq!(tokens.len(), 0);
     println!("      Passed ✅ test_enum_nft_tokens_for_owner");
     Ok(())
 }
