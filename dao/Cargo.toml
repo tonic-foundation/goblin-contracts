@@ -1,6 +1,6 @@
 [package]
-name = "approval-receiver"
-version = "0.0.1"
+name = "dao-contract"
+version = "1.0.0"
 authors = ["Near Inc <hello@near.org>"]
 edition = "2018"
 
