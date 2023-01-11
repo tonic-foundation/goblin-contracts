@@ -14,8 +14,8 @@ test.beforeEach(async t => {
         '../../res/non_fungible_token.wasm',
         {
             initialBalance: NEAR.parse('100 N').toJSON(),
-            method: "new_default_meta",
-            args: { owner_id: root }
+            method: "new",
+            args: { owner_id: root, metadata: { spec: "nft-1.0.0", name: "Tonic Greedy Goblins", symbol: "GGB" } }
         },
     );
     await root.call(

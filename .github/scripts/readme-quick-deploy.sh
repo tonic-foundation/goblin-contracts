@@ -19,7 +19,7 @@ else
 fi
 
 echo ==== Initialize contract using the new method ====
-TEXT=$(near call $CONTRACT_NAME new_default_meta '{"owner_id": "'$CONTRACT_NAME'"}' --accountId $CONTRACT_NAME)
+TEXT=$(near call $CONTRACT_NAME new '{"owner_id": "'$CONTRACT_NAME'", "metadata": {"spec": "nft-1.0.0", "name": "Tonic Greedy Goblins", "symbol": "GGB"}}' --accountId $CONTRACT_NAME)
 if [[ ! "$TEXT" =~ .*"To see the transaction in the transaction explorer".* ]]; then 
     echo -e "\033[0;31m FAIL \033[0m"
     exit 1 

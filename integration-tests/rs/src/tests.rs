@@ -1,7 +1,6 @@
 use near_units::{parse_gas, parse_near};
 use serde_json::json;
-use workspaces::prelude::*;
-use workspaces::{network::Sandbox, Account, Contract, Worker};
+use workspaces::{Account, Contract};
 
 const NFT_WASM_FILEPATH: &str = "../../res/non_fungible_token.wasm";
 const TR_WASM_FILEPATH: &str = "../../res/token_receiver.wasm";
@@ -53,21 +52,21 @@ async fn main() -> anyhow::Result<()> {
         .await?;
 
     // begin tests
-    test_simple_approve(&owner, &alice, &nft_contract, &worker).await?;
-    test_approval_simple_call(&owner, &nft_contract, &ar_contract, &worker).await?;
-    test_approved_account_transfers_token(&owner, &alice, &nft_contract, &worker).await?;
-    test_revoke(&owner, &alice, &nft_contract, &tr_contract, &worker).await?;
-    test_revoke_all(&owner, &alice, &nft_contract, &tr_contract, &worker).await?;
-    test_simple_transfer(&owner, &alice, &nft_contract, &worker).await?;
-    test_transfer_call_fast_return_to_sender(&owner, &tr_contract, &nft_contract, &worker).await?;
-    test_transfer_call_slow_return_to_sender(&owner, &tr_contract, &nft_contract, &worker).await?;
-    test_transfer_call_fast_keep_with_sender(&owner, &tr_contract, &nft_contract, &worker).await?;
-    test_transfer_call_slow_keep_with_sender(&owner, &tr_contract, &nft_contract, &worker).await?;
-    test_transfer_call_receiver_panics(&owner, &tr_contract, &nft_contract, &worker).await?;
-    test_enum_total_supply(&nft_contract, &worker).await?;
-    test_enum_nft_tokens(&nft_contract, &worker).await?;
-    test_enum_nft_supply_for_owner(&owner, &alice, &nft_contract, &worker).await?;
-    test_enum_nft_tokens_for_owner(&owner, &alice, &nft_contract, &worker).await?;
+    test_simple_approve(&owner, &alice, &nft_contract).await?;
+    test_approval_simple_call(&owner, &nft_contract, &ar_contract).await?;
+    test_approved_account_transfers_token(&owner, &alice, &nft_contract).await?;
+    test_revoke(&owner, &alice, &nft_contract, &tr_contract).await?;
+    test_revoke_all(&owner, &alice, &nft_contract, &tr_contract).await?;
+    test_simple_transfer(&owner, &alice, &nft_contract).await?;
+    test_transfer_call_fast_return_to_sender(&owner, &tr_contract, &nft_contract).await?;
+    test_transfer_call_slow_return_to_sender(&owner, &tr_contract, &nft_contract).await?;
+    test_transfer_call_fast_keep_with_sender(&owner, &tr_contract, &nft_contract).await?;
+    test_transfer_call_slow_keep_with_sender(&owner, &tr_contract, &nft_contract).await?;
+    test_transfer_call_receiver_panics(&owner, &tr_contract, &nft_contract).await?;
+    test_enum_total_supply(&nft_contract).await?;
+    test_enum_nft_tokens(&nft_contract).await?;
+    test_enum_nft_supply_for_owner(&owner, &alice, &nft_contract).await?;
+    test_enum_nft_tokens_for_owner(&owner, &alice, &nft_contract).await?;
     Ok(())
 }
 
@@ -75,7 +74,6 @@ async fn test_simple_approve(
     owner: &Account,
     user: &Account,
     nft_contract: &Contract,
-    worker: &Worker<Sandbox>,
 ) -> anyhow::Result<()> {
     owner
         .call(nft_contract.id(), "nft_mint")
@@ -148,7 +146,6 @@ async fn test_approval_simple_call(
     owner: &Account,
     nft_contract: &Contract,
     approval_receiver: &Contract,
-    worker: &Worker<Sandbox>,
 ) -> anyhow::Result<()> {
     owner
         .call(nft_contract.id(), "nft_mint")
@@ -202,7 +199,6 @@ async fn test_approved_account_transfers_token(
     owner: &Account,
     user: &Account,
     nft_contract: &Contract,
-    worker: &Worker<Sandbox>,
 ) -> anyhow::Result<()> {
     use serde_json::Value::String;
     owner
@@ -234,7 +230,6 @@ async fn test_revoke(
     user: &Account,
     nft_contract: &Contract,
     token_receiver: &Contract,
-    worker: &Worker<Sandbox>,
 ) -> anyhow::Result<()> {
     owner
         .call(nft_contract.id(), "nft_approve")
@@ -338,7 +333,6 @@ async fn test_revoke_all(
     user: &Account,
     nft_contract: &Contract,
     token_receiver: &Contract,
-    worker: &Worker<Sandbox>,
 ) -> anyhow::Result<()> {
     // root approves alice
     owner
@@ -395,7 +389,6 @@ async fn test_simple_transfer(
     owner: &Account,
     user: &Account,
     nft_contract: &Contract,
-    worker: &Worker<Sandbox>,
 ) -> anyhow::Result<()> {
     use serde_json::Value::String;
     let token: serde_json::Value = nft_contract
@@ -432,7 +425,6 @@ async fn test_transfer_call_fast_return_to_sender(
     owner: &Account,
     token_receiver: &Contract,
     nft_contract: &Contract,
-    worker: &Worker<Sandbox>,
 ) -> anyhow::Result<()> {
     use serde_json::Value::String;
     owner
@@ -479,7 +471,6 @@ async fn test_transfer_call_slow_return_to_sender(
     owner: &Account,
     token_receiver: &Contract,
     nft_contract: &Contract,
-    worker: &Worker<Sandbox>,
 ) -> anyhow::Result<()> {
     use serde_json::Value::String;
     owner
@@ -511,7 +502,6 @@ async fn test_transfer_call_fast_keep_with_sender(
     owner: &Account,
     token_receiver: &Contract,
     nft_contract: &Contract,
-    worker: &Worker<Sandbox>,
 ) -> anyhow::Result<()> {
     use serde_json::Value::String;
     owner
@@ -546,7 +536,6 @@ async fn test_transfer_call_slow_keep_with_sender(
     owner: &Account,
     token_receiver: &Contract,
     nft_contract: &Contract,
-    worker: &Worker<Sandbox>,
 ) -> anyhow::Result<()> {
     use serde_json::Value::String;
     owner
@@ -596,7 +585,6 @@ async fn test_transfer_call_receiver_panics(
     owner: &Account,
     token_receiver: &Contract,
     nft_contract: &Contract,
-    worker: &Worker<Sandbox>,
 ) -> anyhow::Result<()> {
     use serde_json::Value::String;
     owner
@@ -642,7 +630,6 @@ async fn test_transfer_call_receiver_panics(
 
 async fn test_enum_total_supply(
     nft_contract: &Contract,
-    worker: &Worker<Sandbox>,
 ) -> anyhow::Result<()> {
     let supply: String = nft_contract
         .call("nft_total_supply")
@@ -658,7 +645,6 @@ async fn test_enum_total_supply(
 
 async fn test_enum_nft_tokens(
     nft_contract: &Contract,
-    worker: &Worker<Sandbox>,
 ) -> anyhow::Result<()> {
     let tokens: Vec<serde_json::Value> = nft_contract
         .call("nft_tokens")
@@ -677,7 +663,6 @@ async fn test_enum_nft_supply_for_owner(
     owner: &Account,
     user: &Account,
     nft_contract: &Contract,
-    worker: &Worker<Sandbox>,
 ) -> anyhow::Result<()> {
     let owner_tokens: String = nft_contract
         .call("nft_supply_for_owner")
@@ -703,7 +688,6 @@ async fn test_enum_nft_tokens_for_owner(
     owner: &Account,
     user: &Account,
     nft_contract: &Contract,
-    worker: &Worker<Sandbox>,
 ) -> anyhow::Result<()> {
     let tokens: Vec<serde_json::Value> = nft_contract
         .call("nft_tokens_for_owner")
