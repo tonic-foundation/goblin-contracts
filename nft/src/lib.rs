@@ -155,12 +155,7 @@ impl Contract {
 
 impl Contract {
     pub fn check_old_owner_in_map(&mut self, owner_id: &AccountId) {
-        let owner_nft = self
-            .tokens
-            .tokens_per_owner
-            .as_ref()
-            .unwrap()
-            .get(&owner_id);
+        let owner_nft = self.tokens.tokens_per_owner.as_ref().unwrap().get(owner_id);
 
         if owner_nft.is_none() {
             self.token_owners.remove(owner_id);
