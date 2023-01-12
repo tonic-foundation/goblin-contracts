@@ -1,6 +1,6 @@
-mod dao_impl;
+mod dao_structs;
 
-use dao_impl::*;
+use dao_structs::*;
 use near_sdk::serde::Serialize;
 use near_sdk::serde_json::json;
 use std::collections::HashSet;
@@ -41,9 +41,9 @@ impl Contract {
         }
     }
 
-    /// Synchronize NFT owners. Removes those ones who don't have NFT anymore,
-    /// insert new owners. Return `true` if NFT owners are fully synchronized.
-    pub fn sync_nft_owners(&mut self) -> Promise {
+    /// Synchronize NFT owners and DAO members.
+    /// Replace existing members with current NFT owners.
+    pub fn sync_dao_members(&mut self) -> Promise {
         self.assert_owner();
 
         let ext_self = Self::ext(env::current_account_id());
@@ -58,11 +58,11 @@ impl Contract {
                 0,
                 gas_get_policy,
             ))
-            .then(ext_self.handle_nft_owners_sync())
+            .then(ext_self.handle_dao_members_sync())
     }
 
     #[private]
-    pub fn handle_nft_owners_sync(
+    pub fn handle_dao_members_sync(
         &mut self,
         #[callback] owners: HashSet<AccountId>,
         #[callback] mut policy: Policy,
