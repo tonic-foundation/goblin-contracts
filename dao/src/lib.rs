@@ -107,7 +107,7 @@ impl Contract {
     }
 
     /// Create proposals for owners that should be added to or removed from DAO members
-    pub fn update_owners_proposal(&mut self) {
+    pub fn create_proposals(&mut self) {
         self.assert_owner();
 
         let members = self.members_to_update.clone();
@@ -210,6 +210,7 @@ impl Contract {
     }
 }
 
+/// Returns the accounts which are presented in first set and are absent in second one
 fn difference(first_set: &HashSet<AccountId>, second_set: &HashSet<AccountId>) -> Vec<AccountId> {
     first_set
         .difference(&second_set)
