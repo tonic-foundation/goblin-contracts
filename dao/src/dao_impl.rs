@@ -1,6 +1,10 @@
-use std::collections::{HashSet, HashMap};
+use std::collections::{HashMap, HashSet};
 
-use near_sdk::{serde::Deserialize, json_types::{U128, U64}, AccountId};
+use near_sdk::{
+    json_types::{U128, U64},
+    serde::Deserialize,
+    AccountId,
+};
 
 #[derive(Deserialize)]
 #[serde(crate = "near_sdk::serde")]
