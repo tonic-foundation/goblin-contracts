@@ -1,12 +1,13 @@
 use std::collections::{HashMap, HashSet};
 
 use near_sdk::{
+    env,
     json_types::{U128, U64},
-    serde::Deserialize,
+    serde::{Deserialize, Serialize},
     AccountId,
 };
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(crate = "near_sdk::serde")]
 pub struct Policy {
     /// List of roles and permissions for them in the current policy.
@@ -23,7 +24,26 @@ pub struct Policy {
     pub bounty_forgiveness_period: U64,
 }
 
-#[derive(Deserialize)]
+impl Policy {
+    pub fn update_group_members(&mut self, new_members: HashSet<AccountId>, members_role: String) {
+        let index = &self
+            .roles
+            .iter()
+            .position(|role| role.name == members_role)
+            .expect("Role not found");
+
+        let mut role_permission = self.roles.remove(*index);
+
+        match role_permission.kind {
+            RoleKind::Group(_) => role_permission.kind = RoleKind::Group(new_members),
+            _ => env::panic_str("Wrong role kind"),
+        }
+
+        self.roles.push(role_permission);
+    }
+}
+
+#[derive(Deserialize, Serialize)]
 #[serde(crate = "near_sdk::serde")]
 pub struct RolePermission {
     /// Name of the role to display to the user.
@@ -38,7 +58,7 @@ pub struct RolePermission {
 }
 
 /// Defines configuration of the vote.
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(crate = "near_sdk::serde")]
 pub struct VotePolicy {
     /// Kind of weight to use for votes.
@@ -53,7 +73,7 @@ pub struct VotePolicy {
     pub threshold: WeightOrRatio,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(crate = "near_sdk::serde")]
 pub enum RoleKind {
     /// Matches everyone, who is not matched by other roles.
@@ -65,7 +85,7 @@ pub enum RoleKind {
 }
 
 /// Direct weight or ratio to total weight, used for the voting policy.
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(crate = "near_sdk::serde")]
 #[serde(untagged)]
 pub enum WeightOrRatio {
@@ -74,7 +94,7 @@ pub enum WeightOrRatio {
 }
 
 /// How the voting policy votes get weigthed.
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(crate = "near_sdk::serde")]
 pub enum WeightKind {
     /// Using token amounts and total delegated at the moment.
