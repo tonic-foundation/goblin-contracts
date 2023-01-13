@@ -1,81 +1,97 @@
+mod dao_structs;
+
+use dao_structs::*;
+use near_sdk::serde::Serialize;
+use near_sdk::serde_json::json;
 use std::collections::HashSet;
 
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::{env, near_bindgen, AccountId, Gas, PanicOnDefault, Promise};
 
-const TGAS_GET_NFT_TOKENS: u64 = 100;
+const TGAS_GET_NFT_TOKENS: u64 = 20;
+const TGAS_GET_DAO_POLICY: u64 = 20;
+const TGAS_ADD_PROPOSAL: u64 = 40;
+
+#[derive(BorshDeserialize, BorshSerialize, Clone, Serialize)]
+#[serde(crate = "near_sdk::serde")]
+pub enum MembershipType {
+    Add,
+    Remove,
+}
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
 pub struct Contract {
     owner_id: AccountId,
     nft_contract_id: AccountId,
-    nft_owners: HashSet<AccountId>,
+    dao_account_id: AccountId,
+    dao_owners_role: String,
 }
 
 #[near_bindgen]
 impl Contract {
     #[init]
-    pub fn new(owner_id: AccountId, nft_contract_id: AccountId) -> Self {
+    pub fn new(owner_id: AccountId, nft_contract_id: AccountId, dao_account_id: AccountId) -> Self {
         assert!(!env::state_exists(), "Already initialized");
         Self {
             owner_id,
             nft_contract_id,
-            nft_owners: HashSet::new(),
+            dao_account_id,
+            dao_owners_role: String::new(),
         }
     }
 
-    /// Synchronizing NFT owners. Removes those ones who don't have NFT anymore,
-    /// insert new owners. Return `true` if NFT owners are fully synchronized.
-    pub fn sync_nft_owners(&mut self) -> Promise {
-        assert_eq!(self.owner_id, env::predecessor_account_id());
+    /// Synchronize NFT owners and DAO members.
+    /// Replace existing members with current NFT owners.
+    pub fn sync_dao_members(&mut self) -> Promise {
+        self.assert_owner();
 
         let ext_self = Self::ext(env::current_account_id());
-        let gas = Gas::ONE_TERA * TGAS_GET_NFT_TOKENS;
+        let gas_get_owners = Gas::ONE_TERA * TGAS_GET_NFT_TOKENS;
+        let gas_get_policy = Gas::ONE_TERA * TGAS_GET_DAO_POLICY;
 
         Promise::new(self.nft_contract_id.clone())
-            .function_call("nft_owners".into(), vec![], 0, gas)
-            .then(ext_self.handle_owners_sync())
+            .function_call("nft_owners".into(), vec![], 0, gas_get_owners)
+            .and(Promise::new(self.dao_account_id.clone()).function_call(
+                "get_policy".into(),
+                vec![],
+                0,
+                gas_get_policy,
+            ))
+            .then(ext_self.handle_dao_members_sync())
     }
 
     #[private]
-    pub fn handle_owners_sync(&mut self, #[callback] owners: HashSet<AccountId>) -> bool {
-        let owners_to_remove: Vec<AccountId> = self
-            .nft_owners
-            .difference(&owners)
-            .map(Clone::clone)
-            .collect();
+    pub fn handle_dao_members_sync(
+        &mut self,
+        #[callback] owners: HashSet<AccountId>,
+        #[callback] mut policy: Policy,
+    ) -> Promise {
+        policy.update_group_members(owners, self.dao_owners_role.clone());
 
-        self.remove_owners(owners_to_remove);
+        let gas = Gas::ONE_TERA * TGAS_ADD_PROPOSAL;
+        let args = json!({
+          "proposal": {
+            "description": "Update DAO members",
+            "kind": {
+                "ChangePolicy": {
+                    "policy": policy
+              }
+            }
+          }
+        })
+        .to_string()
+        .into_bytes();
 
-        let owners_to_add: Vec<AccountId> = owners
-            .difference(&self.nft_owners)
-            .map(Clone::clone)
-            .collect();
-
-        self.nft_owners.extend(owners_to_add);
-
-        owners.len() == self.nft_owners.len()
+        Promise::new(self.dao_account_id.clone()).function_call("add_proposal".into(), args, 0, gas)
     }
 
-    pub fn clear_nft_owners(&mut self) -> usize {
+    pub fn set_dao_role(&mut self, role: String) {
+        self.assert_owner();
+        self.dao_owners_role = role;
+    }
+
+    fn assert_owner(&self) {
         assert_eq!(self.owner_id, env::predecessor_account_id());
-        self.nft_owners.clear();
-        self.nft_owners.len()
-    }
-
-    pub fn get_nft_owners(&self) -> HashSet<AccountId> {
-        self.nft_owners.clone()
-    }
-
-    pub fn owners_len(&self) -> usize {
-        self.nft_owners.len()
-    }
-
-    pub fn remove_owners(&mut self, users: Vec<AccountId>) {
-        assert_eq!(self.owner_id, env::predecessor_account_id());
-        for user in users {
-            self.nft_owners.remove(&user);
-        }
     }
 }
