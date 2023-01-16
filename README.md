@@ -73,29 +73,30 @@ It is done via Change Policy proposal as it allows updating all members at once.
 
 ## Prepare contract for syncing
 
-1. Build contract
+1. Run the following to build contract. The result will be saved in `/res` directory.
 ```bash
 ./scripts/build.sh
 ```
 
-2. Deploy contract 
+2. Deploy contract.
 ```bash
 near dev-deploy --wasmFile res/dao_contract.wasm
 ```
 
-3. Init contract
+3. Initialize contract providing account ids for owner, NFT and AstroDAO contracts.
 
 ```bash
 near call $CONTRACT_ID new '{"owner_id": "'$OWNER_ID'", "nft_contract_id": "'$NFT_CONTRACT_ID'", "dao_contract_id": "'$DAO_CONTRACT_ID'"}' --accountId $CONTRACT_ID
 ```
 
-4. Set DAO members role from AstroDAO contract
+4. Set role for NFT holders that is used in AstroDAO contract.
 
 ```bash
 near call $CONTRACT_ID set_dao_role '{"role": "'$ROLE'"}' --accountId $OWNER_ID
 ```
 
-5. Sync two contracts 
+5. Sync two contracts. This will create a proposal to set policy with updated DAO members.
+**Note:** it is required to have 0 bond value (min deposit amount) in AstroDAO policy.
 
 ```bash
 near call $CONTRACT_ID sync_dao_members --accountId $OWNER_ID --gas 300000000000000
