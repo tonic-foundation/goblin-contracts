@@ -1,13 +1,12 @@
-The repository contains the implementation of two contracts: Non-fungible Token and LinkDAO contract.
+The repository contains the implementation of two contracts: Non-fungible Token and LinkDAO contract. LinkDAO allows synchronizing NFT ownership with DAO membership. This will enable NEAR NFT communities to form governance structures based on ownership of an NFT, similar to [NounsDAO](https://nouns.wtf/).
 
 Non-fungible Token (NFT)
 ===================
 
 This repository includes an implementation of a [non-fungible token] contract which uses [near-contract-standards] and workspaces-js and -rs tests.
 
-  [non-fungible token]: https://nomicon.io/Standards/NonFungibleToken/README.html
+  [non-fungible token]: https://nomicon.io/Standards/Tokens/NonFungibleToken/
   [near-contract-standards]: https://github.com/near/near-sdk-rs/tree/master/near-contract-standards
-  [simulation]: https://github.com/near/near-sdk-rs/tree/master/near-sdk-sim
 
 ## Explore this contract
 
