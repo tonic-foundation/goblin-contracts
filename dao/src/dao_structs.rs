@@ -25,7 +25,7 @@ pub struct Policy {
 }
 
 impl Policy {
-    pub fn update_group_members(&mut self, new_members: HashSet<AccountId>, members_role: String) {
+    pub fn update_dao_members(&mut self, new_members: HashSet<AccountId>, members_role: String) {
         let index = &self
             .roles
             .iter()

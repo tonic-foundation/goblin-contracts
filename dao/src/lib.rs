@@ -24,19 +24,23 @@ pub enum MembershipType {
 pub struct Contract {
     owner_id: AccountId,
     nft_contract_id: AccountId,
-    dao_account_id: AccountId,
+    dao_contract_id: AccountId,
     dao_owners_role: String,
 }
 
 #[near_bindgen]
 impl Contract {
     #[init]
-    pub fn new(owner_id: AccountId, nft_contract_id: AccountId, dao_account_id: AccountId) -> Self {
+    pub fn new(
+        owner_id: AccountId,
+        nft_contract_id: AccountId,
+        dao_contract_id: AccountId,
+    ) -> Self {
         assert!(!env::state_exists(), "Already initialized");
         Self {
             owner_id,
             nft_contract_id,
-            dao_account_id,
+            dao_contract_id,
             dao_owners_role: String::new(),
         }
     }
@@ -52,7 +56,7 @@ impl Contract {
 
         Promise::new(self.nft_contract_id.clone())
             .function_call("nft_owners".into(), vec![], 0, gas_get_owners)
-            .and(Promise::new(self.dao_account_id.clone()).function_call(
+            .and(Promise::new(self.dao_contract_id.clone()).function_call(
                 "get_policy".into(),
                 vec![],
                 0,
@@ -67,7 +71,7 @@ impl Contract {
         #[callback] owners: HashSet<AccountId>,
         #[callback] mut policy: Policy,
     ) -> Promise {
-        policy.update_group_members(owners, self.dao_owners_role.clone());
+        policy.update_dao_members(owners, self.dao_owners_role.clone());
 
         let gas = Gas::ONE_TERA * TGAS_ADD_PROPOSAL;
         let args = json!({
@@ -83,7 +87,12 @@ impl Contract {
         .to_string()
         .into_bytes();
 
-        Promise::new(self.dao_account_id.clone()).function_call("add_proposal".into(), args, 0, gas)
+        Promise::new(self.dao_contract_id.clone()).function_call(
+            "add_proposal".into(),
+            args,
+            0,
+            gas,
+        )
     }
 
     pub fn set_dao_role(&mut self, role: String) {
