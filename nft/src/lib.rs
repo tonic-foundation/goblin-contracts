@@ -28,10 +28,19 @@ use near_contract_standards::non_fungible_token::NonFungibleToken;
 use near_contract_standards::non_fungible_token::{Token, TokenId};
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::LazyOption;
+use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::{
     env, ext_contract, near_bindgen, AccountId, BorshStorageKey, PanicOnDefault, Promise,
     PromiseOrValue,
 };
+
+#[derive(Deserialize, Serialize)]
+#[serde(crate = "near_sdk::serde")]
+pub struct TokenMintArgs {
+    pub token_id: TokenId,
+    pub receiver_id: AccountId,
+    pub token_metadata: TokenMetadata,
+}
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
@@ -87,6 +96,24 @@ impl Contract {
         self.token_owners.insert(receiver_id.clone());
         self.tokens
             .internal_mint(token_id, receiver_id, Some(token_metadata))
+    }
+
+    #[payable]
+    pub fn multiple_nft_mint(&mut self, tokens_args: Vec<TokenMintArgs>) -> Vec<Token> {
+        assert_eq!(self.tokens.owner_id, env::predecessor_account_id());
+        let mut tokens = Vec::new();
+
+        for args in tokens_args {
+            self.token_owners.insert(args.receiver_id.clone());
+            let token = self.tokens.internal_mint(
+                args.token_id,
+                args.receiver_id,
+                Some(args.token_metadata),
+            );
+            tokens.push(token);
+        }
+
+        tokens
     }
 
     pub fn nft_owners(&self) -> HashSet<AccountId> {
@@ -351,5 +378,32 @@ mod tests {
             .attached_deposit(0)
             .build());
         assert!(!contract.nft_is_approved(token_id.clone(), accounts(1), Some(1)));
+    }
+
+    #[test]
+    fn test_multiple_mint() {
+        let mut context = get_context(accounts(0));
+        testing_env!(context.build());
+        let mut contract = Contract::new(accounts(0).into(), nft_contract_metadata());
+
+        testing_env!(context
+            .storage_usage(env::storage_usage())
+            .attached_deposit(MINT_STORAGE_COST * 6)
+            .predecessor_account_id(accounts(0))
+            .build());
+
+        let mut token_args = Vec::new();
+        for i in 0..6 {
+            let args = TokenMintArgs {
+                token_id: i.to_string(),
+                receiver_id: accounts(i),
+                token_metadata: sample_token_metadata(),
+            };
+            token_args.push(args);
+        }
+        let tokens = contract.multiple_nft_mint(token_args);
+        assert_eq!(contract.token_owners.len(), 6);
+        assert_eq!(tokens.len(), 6);
+        assert_eq!(contract.tokens.nft_tokens(None, None).len(), 6);
     }
 }
