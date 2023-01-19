@@ -222,6 +222,16 @@ mod tests {
     }
 
     #[test]
+    fn test_owner_change() {
+        let context = get_context(accounts(1));
+        testing_env!(context.build());
+        let mut contract = Contract::new(accounts(1).into(), nft_contract_metadata());
+        assert_eq!(contract.tokens.owner_id, accounts(1));
+        contract.set_owner(accounts(2));
+        assert_eq!(contract.tokens.owner_id, accounts(2));
+    }
+
+    #[test]
     fn test_mint() {
         let mut context = get_context(accounts(0));
         testing_env!(context.build());
