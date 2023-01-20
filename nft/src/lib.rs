@@ -119,6 +119,11 @@ impl Contract {
     pub fn nft_owners(&self) -> HashSet<AccountId> {
         self.token_owners.clone()
     }
+
+    pub fn set_owner(&mut self, account_id: AccountId) {
+        assert_eq!(self.tokens.owner_id, env::predecessor_account_id());
+        self.tokens.owner_id = account_id;
+    }
 }
 
 impl Contract {
@@ -214,6 +219,16 @@ mod tests {
         let context = get_context(accounts(1));
         testing_env!(context.build());
         let _contract = Contract::default();
+    }
+
+    #[test]
+    fn test_owner_change() {
+        let context = get_context(accounts(1));
+        testing_env!(context.build());
+        let mut contract = Contract::new(accounts(1).into(), nft_contract_metadata());
+        assert_eq!(contract.tokens.owner_id, accounts(1));
+        contract.set_owner(accounts(2));
+        assert_eq!(contract.tokens.owner_id, accounts(2));
     }
 
     #[test]
