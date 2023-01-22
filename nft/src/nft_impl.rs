@@ -1,9 +1,15 @@
 use near_contract_standards::non_fungible_token::{
     core::NonFungibleTokenResolver, events::NftTransfer, refund_approved_account_ids,
 };
-use near_sdk::PromiseResult;
+use near_sdk::{assert_one_yocto, json_types::U128, PromiseResult};
 
 use crate::*;
+
+#[derive(Serialize, Deserialize, Default)]
+#[serde(crate = "near_sdk::serde")]
+pub struct Payout {
+    pub payout: HashMap<AccountId, U128>,
+}
 
 #[near_bindgen]
 impl NonFungibleTokenCore for Contract {
@@ -106,6 +112,42 @@ impl NonFungibleTokenResolver for Contract {
 
         emit_transfer(&receiver_id, &previous_owner_id, &token_id, None, None);
         false
+    }
+}
+
+#[near_bindgen]
+#[allow(unused_variables)]
+impl Contract {
+    pub fn nft_payout(&self, token_id: TokenId, balance: U128, max_len_payout: u32) -> Payout {
+        let owner_id = self.tokens.owner_by_id.get(&token_id).expect("No token id");
+
+        let mut payout = Payout::default();
+        payout.payout.insert(owner_id, balance);
+        payout
+    }
+
+    #[payable]
+    pub fn nft_transfer_payout(
+        &mut self,
+        receiver_id: AccountId,
+        token_id: String,
+        approval_id: u64,
+        balance: U128,
+        max_len_payout: u32,
+    ) -> HashMap<AccountId, U128> {
+        assert_one_yocto();
+
+        let owner_id = self.tokens.owner_by_id.get(&token_id).expect("No token id");
+        self.tokens.nft_transfer(
+            receiver_id.clone(),
+            token_id.clone(),
+            Some(approval_id),
+            None,
+        );
+
+        let mut result = HashMap::new();
+        result.insert(owner_id, balance);
+        result
     }
 }
 
