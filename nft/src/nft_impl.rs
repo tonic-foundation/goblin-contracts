@@ -5,7 +5,7 @@ use near_sdk::{assert_one_yocto, json_types::U128, PromiseResult};
 
 use crate::*;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 #[serde(crate = "near_sdk::serde")]
 pub struct Payout {
     pub payout: HashMap<AccountId, U128>,
@@ -121,9 +121,7 @@ impl Contract {
     pub fn nft_payout(&self, token_id: TokenId, balance: U128, max_len_payout: u32) -> Payout {
         let owner_id = self.tokens.owner_by_id.get(&token_id).expect("No token id");
 
-        let mut payout: Payout = Payout {
-            payout: HashMap::new(),
-        };
+        let mut payout = Payout::default();
         payout.payout.insert(owner_id, balance);
         payout
     }
@@ -147,7 +145,7 @@ impl Contract {
             None,
         );
 
-        let mut result: HashMap<AccountId, U128> = HashMap::new();
+        let mut result = HashMap::new();
         result.insert(owner_id, balance);
         result
     }

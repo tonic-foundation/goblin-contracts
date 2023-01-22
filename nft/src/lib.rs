@@ -30,7 +30,7 @@ use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::LazyOption;
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::{
-    env, ext_contract, log, near_bindgen, AccountId, BorshStorageKey, PanicOnDefault, Promise,
+    env, ext_contract, near_bindgen, AccountId, BorshStorageKey, PanicOnDefault, Promise,
     PromiseOrValue,
 };
 
@@ -63,13 +63,8 @@ enum StorageKey {
 impl Contract {
     #[init]
     pub fn new(owner_id: AccountId, metadata: NFTContractMetadata) -> Self {
-        log!("1");
         assert!(!env::state_exists(), "Already initialized");
-        log!("2");
-
         metadata.assert_valid();
-        log!("3");
-
         Self {
             tokens: NonFungibleToken::new(
                 StorageKey::NonFungibleToken,
