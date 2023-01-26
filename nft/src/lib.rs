@@ -93,6 +93,12 @@ impl Contract {
         receiver_id: AccountId,
         token_metadata: TokenMetadata,
     ) -> Token {
+        assert_eq!(
+            env::predecessor_account_id(),
+            self.tokens.owner_id,
+            "Unauthorized"
+        );
+
         self.token_owners.insert(receiver_id.clone());
         self.tokens
             .internal_mint(token_id, receiver_id, Some(token_metadata))
