@@ -11,6 +11,7 @@ use near_sdk::{env, near_bindgen, AccountId, Gas, PanicOnDefault, Promise};
 const TGAS_GET_NFT_TOKENS: u64 = 20;
 const TGAS_GET_DAO_POLICY: u64 = 20;
 const TGAS_ADD_PROPOSAL: u64 = 40;
+const TGAS_SYNC_GOBLINS: u64 = 200;
 
 #[derive(BorshDeserialize, BorshSerialize, Clone, Serialize)]
 #[serde(crate = "near_sdk::serde")]
@@ -24,8 +25,11 @@ pub enum MembershipType {
 pub struct Contract {
     owner_id: AccountId,
     nft_contract_id: AccountId,
+    perps_contract_id: AccountId,
     dao_contract_id: AccountId,
     dao_owners_role: String,
+
+    goblins: HashSet<AccountId>,
 }
 
 #[near_bindgen]
@@ -35,13 +39,16 @@ impl Contract {
         owner_id: AccountId,
         nft_contract_id: AccountId,
         dao_contract_id: AccountId,
+        perps_contract_id: AccountId,
     ) -> Self {
         assert!(!env::state_exists(), "Already initialized");
         Self {
             owner_id,
             nft_contract_id,
             dao_contract_id,
+            perps_contract_id,
             dao_owners_role: String::new(),
+            goblins: HashSet::new(),
         }
     }
 
@@ -95,6 +102,54 @@ impl Contract {
         )
     }
 
+    /// Synchronize NFT owners and perps goblins.
+    pub fn sync_goblins(&mut self) -> Promise {
+        self.assert_owner();
+
+        let ext_self = Self::ext(env::current_account_id());
+        let gas_get_owners = Gas::ONE_TERA * TGAS_GET_NFT_TOKENS;
+
+        Promise::new(self.nft_contract_id.clone())
+            .function_call("nft_owners".into(), vec![], 0, gas_get_owners)
+            .then(ext_self.handle_goblins_sync())
+    }
+
+    #[private]
+    pub fn handle_goblins_sync(&mut self, #[callback] owners: HashSet<AccountId>) -> Promise {
+        let goblins_to_add = difference(&owners, &self.goblins);
+        let goblins_to_remove = difference(&self.goblins, &owners);
+
+        let ext_self = Self::ext(env::current_account_id());
+        let gas_sync_goblins = Gas::ONE_TERA * TGAS_SYNC_GOBLINS;
+        let args = json!({
+            "goblins_to_add": goblins_to_add,
+            "goblins_to_remove": goblins_to_remove,
+        })
+        .to_string()
+        .into_bytes();
+
+        Promise::new(self.perps_contract_id.clone())
+            .function_call("sync_goblins".into(), args, 0, gas_sync_goblins)
+            .then(ext_self.handle_goblins_update(owners))
+    }
+
+    /// Get goblins that were added and removed in perps 
+    /// and do the same with `self.goblins` to have both sets synchronized.
+    #[private]
+    pub fn handle_goblins_update(
+        &mut self,
+        owners: HashSet<AccountId>,
+        #[callback] goblins: (HashSet<AccountId>, HashSet<AccountId>),
+    ) -> bool {
+        self.goblins.extend(goblins.0);
+
+        for goblin in goblins.1 {
+            self.goblins.remove(&goblin);
+        }
+
+        owners.len() == self.goblins.len()
+    }
+
     pub fn set_dao_role(&mut self, role: String) {
         self.assert_owner();
         self.dao_owners_role = role;
@@ -103,4 +158,7 @@ impl Contract {
     fn assert_owner(&self) {
         assert_eq!(self.owner_id, env::predecessor_account_id());
     }
+}
+fn difference(set_1: &HashSet<AccountId>, set_2: &HashSet<AccountId>) -> Vec<AccountId> {
+    set_1.difference(set_2).map(|a| a.clone()).collect()
 }
