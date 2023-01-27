@@ -16,6 +16,7 @@ NOTES:
     keys on its account.
 */
 
+mod approve_impl;
 mod nft_impl;
 
 use std::collections::{HashMap, HashSet};
@@ -30,8 +31,7 @@ use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::LazyOption;
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::{
-    env, ext_contract, near_bindgen, AccountId, BorshStorageKey, PanicOnDefault, Promise,
-    PromiseOrValue,
+    env, ext_contract, near_bindgen, AccountId, BorshStorageKey, PanicOnDefault, PromiseOrValue,
 };
 
 #[derive(Deserialize, Serialize)]
@@ -152,7 +152,6 @@ impl Contract {
     }
 }
 
-near_contract_standards::impl_non_fungible_token_approval!(Contract, tokens);
 near_contract_standards::impl_non_fungible_token_enumeration!(Contract, tokens);
 
 #[near_bindgen]
@@ -164,6 +163,7 @@ impl NonFungibleTokenMetadataProvider for Contract {
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
+    use near_contract_standards::non_fungible_token::approval::NonFungibleTokenApproval;
     use near_sdk::test_utils::{accounts, VMContextBuilder};
     use near_sdk::testing_env;
     use std::collections::HashMap;
